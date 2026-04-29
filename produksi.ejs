@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Manajemen Produksi - Baterai</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-warning mb-4 shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold text-dark" href="/"><i class="bi bi-arrow-left"></i> Kembali ke Dashboard</a>
+            <span class="navbar-text text-dark fw-bold">MODUL PRODUKSI INTERNAL</span>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <form id="formProduksi" action="/produksi/proses-total" method="POST" class="card shadow-sm border-0">
+            <div class="card-header bg-dark text-white fw-bold">
+                <i class="bi bi-cpu"></i> Form Produksi & Perakitan Terpadu
+            </div>
+            <div class="card-body">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Nama Proyek Produksi</label>
+                        <input type="text" name="nama_proyek" class="form-control" placeholder="Contoh: Batch Produksi Baterai Drone 3S" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Penanggung Jawab / Petugas</label>
+                        <input type="text" name="petugas" class="form-control" placeholder="Nama Petugas" required>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="row">
+                    <div class="col-md-6 border-end">
+                        <h6 class="fw-bold text-danger"><i class="bi bi-box-arrow-up"></i> 1. Komponen yang Digunakan (Keluar)</h6>
+                        <div id="komponen-container">
+                            <div class="row g-2 mb-2 komponen-row komponen-group">
+                                <div class="col-8">
+                                    <select name="komponen_id[]" class="form-select form-select-sm komponen-select" onchange="hitungTotalModal()" required>
+                                        <option value="" data-modal="0">-- Pilih Komponen --</option>
+                                        <% daftar_barang.forEach(item => { %>
+                                            <option value="<%= item.id %>" data-harga="<%= item.harga_jual || 0 %>">
+                                                <%= item.nama_barang %> (Sisa: <%= item.stok %>) - Rp <%= (item.harga_jual || 0).toLocaleString('id-ID') %>
+                                            </option>
+                                        <% }) %>
+                                    </select>
+                                </div>
+                                <div class="col-3">
+                                    <input type="number" name="komponen_jumlah[]" class="form-control form-control-sm komponen-qty" placeholder="Qty" min="1" required>
+                                </div>
+                                <div class="col-1">
+                                    <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="hapusBaris(this)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                                <input type="hidden" name="komponen_harga_satuan[]" class="komponen-harga-hidden">
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="tambahBaris()">
+                            <i class="bi bi-plus"></i> Tambah Komponen Lain
+                        </button>
+                    </div>
+
+                    <div class="col-md-6">
+                        <h6 class="fw-bold text-success"><i class="bi bi-box-arrow-down"></i> 2. Hasil Produk Jadi (Masuk)</h6>
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <input type="text" name="produk_nama" class="form-control mb-2" placeholder="Nama Produk Hasil Rakitan" required>
+                            </div>
+                            <div class="col-6">
+                                <input type="text" name="produk_sku" class="form-control mb-2" placeholder="SKU Baru">
+                            </div>
+                            <div class="col-6">
+                                <input type="number" name="produk_jumlah" class="form-control mb-2" placeholder="Jumlah Jadi" required>
+                            </div>
+                            <div class="col-6">
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">Rp</span>
+                                    <input type="number" id="totalModalDisplay" name="produk_modal" class="form-control" placeholder="Total Modal" readonly>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">Rp</span>
+                                    <input type="number" name="produk_harga" class="form-control" placeholder="Harga Jual">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-light text-end">
+                <button type="reset" class="btn btn-secondary me-2">Reset</button>
+                <button type="submit" class="btn btn-primary px-5 fw-bold">SIMPAN & UPDATE GUDANG</button>
+            </div>
+        </form>
+    </div>
+
+<script>
+    function tambahBaris() {
+        const container = document.getElementById('komponen-container');
+        const rows = document.querySelectorAll('.komponen-row');
+        const firstRow = rows[0].cloneNode(true);
+        
+        firstRow.querySelector('select').value = "";
+        firstRow.querySelector('.komponen-qty').value = "";
+        firstRow.querySelector('.komponen-harga-hidden').value = ""; // Reset harganya juga
+    
+        container.appendChild(firstRow);
+        hitungTotalModal();
+    }
+
+    function hapusBaris(btn) {
+        const rows = document.querySelectorAll('.komponen-row');
+        if (rows.length > 1) {
+            btn.closest('.komponen-row').remove();
+            hitungTotalModal();
+        } else {
+            alert("Minimal harus ada satu komponen.");
+        }
+    }
+
+    function hitungTotalModal() {
+        let total = 0;
+        // Sekarang komponen-group dan komponen-row ada di div yang sama
+        const barisKomponen = document.querySelectorAll('.komponen-row');
+    
+        barisKomponen.forEach(baris => {
+            const select = baris.querySelector('.komponen-select');
+            const qtyInput = baris.querySelector('.komponen-qty');
+            const hargaHidden = baris.querySelector('.komponen-harga-hidden');
+        
+            if (select && qtyInput) {
+                const opt = select.options[select.selectedIndex];
+                const hargaSatuan = parseFloat(opt.getAttribute('data-harga')) || 0;
+                const jumlah = parseFloat(qtyInput.value) || 0;
+            
+                if (hargaHidden) {
+                    hargaHidden.value = hargaSatuan; // Ini sekarang pasti ketemu!
+                }
+            
+                total += (hargaSatuan * jumlah);
+            }
+        });
+        document.getElementById('totalModalDisplay').value = Math.round(total);
+    }
+
+    // Event listener biar otomatis hitung tiap ketik qty atau pilih barang
+    const form = document.getElementById('formProduksi');
+    form.addEventListener('input', hitungTotalModal);
+    form.addEventListener('change', hitungTotalModal);
+</script>
+</body>
+</html>
